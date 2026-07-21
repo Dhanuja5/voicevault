@@ -72,15 +72,50 @@ def get_user_collection(user_email):
 
 
 
-# --- Load local Whisper model (faster-whisper) ---
-# device="cpu" is default; compute_type="default" for maximum CPU compatibility
-print(f"[INFO] Loading local whisper model: {WHISPER_MODEL_NAME}...")
-try:
-    model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="default")
-    print("[INFO] Model loaded successfully.")
-except Exception as me:
-    print(f"[WARN] Failed to load Whisper model '{WHISPER_MODEL_NAME}': {me}")
-    model = None
+# --- Lazy Whisper model loader ---
+model = None
+
+def get_whisper_model():
+    global model
+    if model is None:
+        try:
+            print(f"[INFO] Initializing Whisper model '{WHISPER_MODEL_NAME}' lazily...")
+            model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="default")
+            print("[INFO] Whisper model loaded successfully.")
+        except Exception as me:
+            print(f"[WARN] Could not load Whisper model '{WHISPER_MODEL_NAME}': {me}")
+            model = False  # Mark as failed to avoid repeated heavy attempts
+    return model if model is not False else None
+
+def transcribe_audio_file(local_path):
+    """Transcribe audio file safely with multi-engine fallback."""
+    # 1. Try SpeechRecognition (Google Speech API) for WAV files
+    try:
+        import speech_recognition as sr
+        r = sr.Recognizer()
+        if local_path.lower().endswith(".wav"):
+            with sr.AudioFile(local_path) as source:
+                audio_data = r.record(source)
+                text = r.recognize_google(audio_data)
+                if text:
+                    print("[INFO] Transcribed via SpeechRecognition (Google API)")
+                    return text
+    except Exception as sre:
+        print(f"[DEBUG] SpeechRecognition skipped: {sre}")
+
+    # 2. Try faster-whisper if model loads successfully
+    whisper_engine = get_whisper_model()
+    if whisper_engine:
+        try:
+            segments, info = whisper_engine.transcribe(local_path, beam_size=1)
+            text = " ".join([seg.text for seg in segments]).strip()
+            if text:
+                print(f"[INFO] Transcribed via Whisper AI (len={len(text)} chars)")
+                return text
+        except Exception as te:
+            print(f"[WARN] Whisper AI transcription failed: {te}")
+
+    return "Audio note uploaded and stored successfully."
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -115,32 +150,8 @@ def upload_audio():
         file.save(local_path)
         print(f"[INFO] Received and saved file: {local_path} (user: {user_email})")
 
-        # Transcribe locally with faster-whisper
-        transcription = ""
-        if model is not None:
-            try:
-                segments, info = model.transcribe(local_path, beam_size=1)
-                transcription = " ".join([seg.text for seg in segments]).strip()
-                print(f"[INFO] Transcription complete (len={len(transcription)} chars)")
-            except Exception as te:
-                print(f"[ERROR] Local transcription failed: {te}")
-                transcription = ""
-
-        # Fallback if whisper transcription was empty or failed
-        if not transcription:
-            try:
-                import speech_recognition as sr
-                r = sr.Recognizer()
-                if local_path.lower().endswith(".wav"):
-                    with sr.AudioFile(local_path) as source:
-                        audio_data = r.record(source)
-                        transcription = r.recognize_google(audio_data)
-                        print(f"[INFO] SpeechRecognition fallback complete")
-            except Exception as sre:
-                print(f"[WARN] Fallback audio processing skipped: {sre}")
-
-        if not transcription:
-            transcription = "Voice note uploaded and recorded successfully."
+        # Transcribe safely
+        transcription = transcribe_audio_file(local_path)
 
         # Save into user's own MongoDB collection
         user_collection = get_user_collection(user_email)
