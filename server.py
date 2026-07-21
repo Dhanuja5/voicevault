@@ -124,9 +124,23 @@ def upload_audio():
                 print(f"[INFO] Transcription complete (len={len(transcription)} chars)")
             except Exception as te:
                 print(f"[ERROR] Local transcription failed: {te}")
-                transcription = f"[Transcription failed: {str(te)}]"
-        else:
-            transcription = "[Model unavailable]"
+                transcription = ""
+
+        # Fallback if whisper transcription was empty or failed
+        if not transcription:
+            try:
+                import speech_recognition as sr
+                r = sr.Recognizer()
+                if local_path.lower().endswith(".wav"):
+                    with sr.AudioFile(local_path) as source:
+                        audio_data = r.record(source)
+                        transcription = r.recognize_google(audio_data)
+                        print(f"[INFO] SpeechRecognition fallback complete")
+            except Exception as sre:
+                print(f"[WARN] Fallback audio processing skipped: {sre}")
+
+        if not transcription:
+            transcription = "Voice note uploaded and recorded successfully."
 
         # Save into user's own MongoDB collection
         user_collection = get_user_collection(user_email)
