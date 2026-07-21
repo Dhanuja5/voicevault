@@ -1,43 +1,277 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VoiceVault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Global Styles ===== */
+    * { box-sizing: border-box; transition: all 0.3s ease; }
+    body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* keep top alignment */
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  /* overflow: hidden;  <-- REMOVE THIS */
+  background: linear-gradient(270deg, #0f2027, #203a43, #2c5364);
+  background-size: 600% 600%;
+  animation: gradientBG 20s ease infinite;
+}
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
+    @keyframes gradientBG {
+      0% {background-position:0% 50%;}
+      50% {background-position:100% 50%;}
+      100% {background-position:0% 50%;}
+    }
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      letter-spacing: 1px;
+      text-align: center;
+      text-shadow: 0 0 12px #00c6ff;
+      z-index: 1;
+      position: relative;
+    }
+    h2 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      color: #00c6ff;
+    }
 
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
+    /* ===== Card Styles ===== */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(15px);
+      border-radius: 25px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      margin-bottom: 2rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      animation: fadeIn 0.8s ease forwards;
+    }
+
+    /* ===== Buttons ===== */
+    button {
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      border: none;
+      padding: 0.85rem 2rem;
+      margin: 0.5rem;
+      border-radius: 15px;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,114,255,0.3);
+      letter-spacing: 0.5px;
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(0,114,255,0.5);
+    }
+
+    /* ===== Inputs ===== */
+    input[type="file"],
+    input[type="text"] {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 0.85rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      font-size: 1rem;
+      color: #fff;
+      outline: none;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    }
+    input::placeholder {
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* ===== Profile Info ===== */
+    #profile { font-size: 0.95rem; color: #cce7ff; margin-top: 1rem; }
+
+    /* ===== Divider ===== */
+    hr { margin: 2rem 0; border: 0; border-top: 1px solid rgba(255,255,255,0.2); }
+
+    /* ===== Animations ===== */
+    @keyframes fadeIn {
+      0% {opacity:0; transform: translateY(20px);}
+      100% {opacity:1; transform: translateY(0);}
+    }
+
+    /* ===== Particle Layer ===== */
+    #particles {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ===== Status indicator ===== */
+    .status-text {
+      padding: 0.75rem 1.2rem;
+      border-radius: 12px;
+      background: rgba(0,198,255,0.1);
+      border: 1px solid rgba(0,198,255,0.3);
+      font-size: 0.95rem;
+      animation: pulse 1.5s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* ===== Auth divider ===== */
+    .auth-divider {
+      color: rgba(255,255,255,0.4);
+      margin: 0.5rem 0;
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+    }
+
+    /* ===== Google button ===== */
+    .google-btn {
+      background: linear-gradient(135deg, #4285f4, #34a853);
+      box-shadow: 0 4px 15px rgba(66,133,244,0.3);
+    }
+    .google-btn:hover {
+      box-shadow: 0 8px 25px rgba(66,133,244,0.5);
+    }
+
+    /* ===== Transcription cards ===== */
+    .transcription-card {
+      text-align: left;
+      padding: 0.5rem 0;
+    }
+
+    /* ===== Storage badges ===== */
+    .storage-badges {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+    .badge {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .badge-mongo { background: rgba(77,175,80,0.2); border: 1px solid rgba(77,175,80,0.4); color: #4daf50; }
+    .badge-firestore { background: rgba(255,167,38,0.2); border: 1px solid rgba(255,167,38,0.4); color: #ffa726; }
+    .badge-dropbox { background: rgba(0,97,255,0.2); border: 1px solid rgba(0,97,255,0.4); color: #4da3ff; }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 500px) {
+      h1 { font-size: 2.2rem; }
+      h2 { font-size: 1.5rem; }
+      button { width: 100%; margin: 0.5rem 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎤 VoiceVault</h1>
+
+  <!-- Particle canvas -->
+  <canvas id="particles"></canvas>
+
+  <!-- ========== AUTH SECTION ========== -->
+  <div id="auth-section" class="card">
+    <h2>Welcome</h2>
+    <p style="margin-bottom:1.5rem;">Securely store, upload &amp; transcribe your voice notes in the cloud.</p>
+    <button id="loginBtn" onclick="login()">Login with Auth0</button>
+    <p id="authDivider" class="auth-divider">— or —</p>
+    <button id="googleLoginBtn" class="google-btn" onclick="loginWithGoogle()">🔐 Sign in with Google</button>
+    <button id="logoutBtn" onclick="logout()" style="display:none;">Logout</button>
+    <div id="profile"></div>
+    <div class="storage-badges" style="margin-top:1.2rem;">
+      <span class="badge badge-mongo">MongoDB</span>
+      <span class="badge badge-firestore">Firestore</span>
+    </div>
+  </div>
+
+  <!-- ========== NOTE / UPLOAD SECTION ========== -->
+  <div id="note-section" class="card" style="display:none;">
+    <h2>Upload &amp; Transcribe</h2>
+    <input type="file" id="audioFile" accept="audio/*" />
+    <button id="uploadBtn" onclick="uploadAudio()">Upload &amp; Transcribe</button>
+    <div id="uploadStatus" style="display:none; margin-top:1rem;"></div>
+    <div id="transcriptionResults" style="margin-top:1rem;"></div>
+
+    <hr />
+
+    <h2>Search Transcriptions</h2>
+    <input type="text" id="audioSearchInput" placeholder="Search..." />
+    <button onclick="searchAudio()">Search</button>
+    <div id="transcriptionList" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- Auth0 -->
+  <script src="https://cdn.jsdelivr.net/npm/@auth0/auth0-spa-js@1.13.6/dist/auth0-spa-js.production.js"></script>
+
+  <!-- Firebase SDK (compat mode) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Particle Animation -->
+  <script>
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function createParticles() {
+      particles = [];
+      for (let i = 0; i < 60; i++) {
+        particles.push({
+          x: Math.random()*canvas.width,
+          y: Math.random()*canvas.height,
+          r: Math.random()*2 + 1,
+          dx: (Math.random()-0.5)*0.5,
+          dy: (Math.random()-0.5)*0.5
+        });
+      }
+    }
+
+    function animateParticles() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(let p of particles){
+        p.x += p.dx; p.y += p.dy;
+        if(p.x<0)p.x=canvas.width; if(p.x>canvas.width)p.x=0;
+        if(p.y<0)p.y=canvas.height; if(p.y>canvas.height)p.y=0;
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(0,198,255,0.4)';
+        ctx.fill();
+      }
+      requestAnimationFrame(animateParticles);
+    }
+
+    createParticles();
+    animateParticles();
+  </script>
+
+  <!-- App logic -->
+  <script src="app.js"></script>
+</body>
 </html>
