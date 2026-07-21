@@ -8,9 +8,6 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
 
-# Local transcription via faster-whisper
-from faster_whisper import WhisperModel
-
 
 
 load_dotenv()
@@ -79,6 +76,7 @@ def get_whisper_model():
     global model
     if model is None:
         try:
+            from faster_whisper import WhisperModel
             print(f"[INFO] Initializing Whisper model '{WHISPER_MODEL_NAME}' lazily...")
             model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="default")
             print("[INFO] Whisper model loaded successfully.")
