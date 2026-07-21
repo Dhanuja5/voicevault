@@ -22,7 +22,7 @@ ALLOWED_EXTENSIONS = {"wav", "mp3", "m4a"}
 
 MONGO_URI = os.getenv("MONGO_URI")
 
-WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")  # base/small/medium/large-v2
+WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "tiny")  # tiny/base for fast deployment
 
 if not MONGO_URI:
     raise RuntimeError("Set MONGO_URI in your environment")
@@ -67,10 +67,10 @@ def get_user_collection(user_email):
 
 
 # --- Load local Whisper model (faster-whisper) ---
-# device="cpu" is default; if you have GPU (CUDA) change to device="cuda"
-print(f"[INFO] Loading local whisper model: {WHISPER_MODEL_NAME} (this may take a while)...")
-model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="int8")  # best CPU perf
-print("[INFO] Model loaded.")
+# device="cpu" is default; compute_type="int8" for CPU perf
+print(f"[INFO] Loading local whisper model: {WHISPER_MODEL_NAME}...")
+model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="int8")
+print("[INFO] Model loaded successfully.")
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -105,9 +105,9 @@ def upload_audio():
     file.save(local_path)
     print(f"[INFO] Received and saved file: {local_path} (user: {user_email})")
 
-    # Transcribe locally with faster-whisper
+    # Transcribe locally with faster-whisper (beam_size=1 for fast, low-memory execution)
     try:
-        segments, info = model.transcribe(local_path, beam_size=5)
+        segments, info = model.transcribe(local_path, beam_size=1)
         transcription = " ".join([seg.text for seg in segments]).strip()
         print(f"[INFO] Transcription complete (len={len(transcription)} chars)")
     except Exception as e:
