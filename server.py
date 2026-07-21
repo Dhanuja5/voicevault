@@ -34,6 +34,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app = Flask(__name__, static_folder=FRONTEND_FOLDER, static_url_path="")
 CORS(app)
 
+import certifi
+
 # --- MongoDB setup ---
 mongo_client = None
 
@@ -41,7 +43,11 @@ def get_db():
     global mongo_client
     if mongo_client is None:
         try:
-            client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+            client = MongoClient(
+                MONGO_URI,
+                serverSelectionTimeoutMS=5000,
+                tlsCAFile=certifi.where()
+            )
             client.admin.command('ping')
             mongo_client = client
             print("[INFO] Connected to MongoDB Atlas successfully.")
