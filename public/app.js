@@ -125,7 +125,14 @@ async function uploadAudio() {
 
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(txt || "Upload failed");
+      let errMsg = "Upload failed";
+      try {
+        const json = JSON.parse(txt);
+        errMsg = json.error || json.message || txt;
+      } catch (e) {
+        errMsg = txt || res.statusText || "Upload failed";
+      }
+      throw new Error(errMsg);
     }
 
     const data = await res.json();

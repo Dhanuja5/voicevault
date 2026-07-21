@@ -73,10 +73,14 @@ def get_user_collection(user_email):
 
 
 # --- Load local Whisper model (faster-whisper) ---
-# device="cpu" is default; compute_type="int8" for CPU perf
+# device="cpu" is default; compute_type="default" for maximum CPU compatibility
 print(f"[INFO] Loading local whisper model: {WHISPER_MODEL_NAME}...")
-model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="int8")
-print("[INFO] Model loaded successfully.")
+try:
+    model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", compute_type="default")
+    print("[INFO] Model loaded successfully.")
+except Exception as me:
+    print(f"[WARN] Failed to load Whisper model '{WHISPER_MODEL_NAME}': {me}")
+    model = None
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -92,60 +96,67 @@ def index():
 # --- Upload/Transcribe route ---
 @app.route("/upload-audio", methods=["POST"])
 def upload_audio():
-    # Expect form field named "audio"
-    if "audio" not in request.files:
-        return jsonify({"error": "No audio file provided"}), 400
-
-    file = request.files["audio"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
-
-    if not allowed_file(file.filename):
-        return jsonify({"error": "File type not allowed"}), 400
-
-    # Get user email for per-user isolation
-    user_email = request.form.get("user_email", "unknown")
-
-    filename = secure_filename(file.filename)
-    local_path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(local_path)
-    print(f"[INFO] Received and saved file: {local_path} (user: {user_email})")
-
-    # Transcribe locally with faster-whisper (beam_size=1 for fast, low-memory execution)
     try:
-        segments, info = model.transcribe(local_path, beam_size=1)
-        transcription = " ".join([seg.text for seg in segments]).strip()
-        print(f"[INFO] Transcription complete (len={len(transcription)} chars)")
-    except Exception as e:
-        print(f"[ERROR] Local transcription failed: {e}")
-        return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
+        if "audio" not in request.files:
+            return jsonify({"error": "No audio file provided"}), 400
 
-    # Save into user's own MongoDB collection
-    user_collection = get_user_collection(user_email)
-    inserted_id = "local_only"
-    if user_collection is not None:
-        try:
-            doc = {
-                "filename": filename,
-                "filepath": local_path,
-                "dropbox_path": None,
-                "dropbox_url": None,
-                "uploaded_at": datetime.datetime.utcnow(),
-                "transcription": transcription,
-                "user_email": user_email
-            }
-            result = user_collection.insert_one(doc)
-            inserted_id = str(result.inserted_id)
-            print(f"[INFO] Saved to MongoDB collection '{user_collection.name}' with ID: {inserted_id}")
-        except Exception as e:
-            print(f"[ERROR] Failed to insert into MongoDB: {e}")
+        file = request.files["audio"]
+        if file.filename == "":
+            return jsonify({"error": "No selected file"}), 400
 
-    return jsonify({
-        "message": "Uploaded, transcribed locally, stored in MongoDB",
-        "id": inserted_id,
-        "filename": filename,
-        "transcription": transcription
-    }), 201
+        if not allowed_file(file.filename):
+            return jsonify({"error": "File type not allowed"}), 400
+
+        # Get user email for per-user isolation
+        user_email = request.form.get("user_email", "unknown")
+
+        filename = secure_filename(file.filename)
+        local_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(local_path)
+        print(f"[INFO] Received and saved file: {local_path} (user: {user_email})")
+
+        # Transcribe locally with faster-whisper
+        transcription = ""
+        if model is not None:
+            try:
+                segments, info = model.transcribe(local_path, beam_size=1)
+                transcription = " ".join([seg.text for seg in segments]).strip()
+                print(f"[INFO] Transcription complete (len={len(transcription)} chars)")
+            except Exception as te:
+                print(f"[ERROR] Local transcription failed: {te}")
+                transcription = f"[Transcription failed: {str(te)}]"
+        else:
+            transcription = "[Model unavailable]"
+
+        # Save into user's own MongoDB collection
+        user_collection = get_user_collection(user_email)
+        inserted_id = "local_only"
+        if user_collection is not None:
+            try:
+                doc = {
+                    "filename": filename,
+                    "filepath": local_path,
+                    "dropbox_path": None,
+                    "dropbox_url": None,
+                    "uploaded_at": datetime.datetime.utcnow(),
+                    "transcription": transcription,
+                    "user_email": user_email
+                }
+                result = user_collection.insert_one(doc)
+                inserted_id = str(result.inserted_id)
+                print(f"[INFO] Saved to MongoDB collection '{user_collection.name}' with ID: {inserted_id}")
+            except Exception as me:
+                print(f"[ERROR] Failed to insert into MongoDB: {me}")
+
+        return jsonify({
+            "message": "Uploaded, transcribed, stored in MongoDB",
+            "id": inserted_id,
+            "filename": filename,
+            "transcription": transcription
+        }), 201
+    except Exception as ge:
+        print(f"[ERROR] Upload endpoint general error: {ge}")
+        return jsonify({"error": str(ge)}), 500
 
 # --- Get all notes (from user's own collection) ---
 @app.route("/notes", methods=["GET"])
