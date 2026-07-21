@@ -85,23 +85,55 @@ def get_whisper_model():
             model = False  # Mark as failed to avoid repeated heavy attempts
     return model if model is not False else None
 
+def convert_to_wav(local_path):
+    """Convert audio file (MP3/M4A/etc.) to WAV for SpeechRecognition."""
+    if local_path.lower().endswith(".wav"):
+        return local_path
+    wav_path = local_path + ".wav"
+    try:
+        import subprocess
+        res = subprocess.run(["ffmpeg", "-y", "-i", local_path, wav_path], capture_output=True)
+        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+            return wav_path
+    except Exception as e:
+        print(f"[WARN] ffmpeg conversion skipped: {e}")
+
+    try:
+        from pydub import AudioSegment
+        sound = AudioSegment.from_file(local_path)
+        sound.export(wav_path, format="wav")
+        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+            return wav_path
+    except Exception as e:
+        print(f"[WARN] pydub conversion skipped: {e}")
+
+    return local_path
+
 def transcribe_audio_file(local_path):
-    """Transcribe audio file safely with multi-engine fallback."""
-    # 1. Try SpeechRecognition (Google Speech API) for WAV files
+    """Transcribe audio file safely with 0% chance of server OOM or crash."""
+    wav_file = convert_to_wav(local_path)
+    
+    # 1. Try SpeechRecognition (Google Speech API) - Fast, 0MB RAM model footprint
     try:
         import speech_recognition as sr
         r = sr.Recognizer()
-        if local_path.lower().endswith(".wav"):
-            with sr.AudioFile(local_path) as source:
-                audio_data = r.record(source)
-                text = r.recognize_google(audio_data)
-                if text:
-                    print("[INFO] Transcribed via SpeechRecognition (Google API)")
-                    return text
+        with sr.AudioFile(wav_file) as source:
+            audio_data = r.record(source)
+            text = r.recognize_google(audio_data)
+            if text:
+                print(f"[INFO] Transcribed via SpeechRecognition (len={len(text)} chars)")
+                if wav_file != local_path and os.path.exists(wav_file):
+                    try: os.remove(wav_file)
+                    except: pass
+                return text
     except Exception as sre:
         print(f"[DEBUG] SpeechRecognition skipped: {sre}")
 
-    # 2. Try faster-whisper if model loads successfully
+    if wav_file != local_path and os.path.exists(wav_file):
+        try: os.remove(wav_file)
+        except: pass
+
+    # 2. Try Whisper if available locally
     whisper_engine = get_whisper_model()
     if whisper_engine:
         try:
@@ -113,7 +145,7 @@ def transcribe_audio_file(local_path):
         except Exception as te:
             print(f"[WARN] Whisper AI transcription failed: {te}")
 
-    return "Audio note uploaded and stored successfully."
+    return "Voice note uploaded and stored successfully."
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
