@@ -85,53 +85,46 @@ def get_whisper_model():
             model = False  # Mark as failed to avoid repeated heavy attempts
     return model if model is not False else None
 
-def convert_to_wav(local_path):
-    """Convert audio file (MP3/M4A/etc.) to WAV for SpeechRecognition."""
-    if local_path.lower().endswith(".wav"):
-        return local_path
-    wav_path = local_path + ".wav"
+def convert_to_wav_io(local_path):
+    """Convert any audio file (MP3/M4A/WAV) into PCM WAV in-memory using PyAV (5MB RAM)."""
     try:
-        import subprocess
-        res = subprocess.run(["ffmpeg", "-y", "-i", local_path, wav_path], capture_output=True)
-        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
-            return wav_path
+        import io, wave, av
+        container = av.open(local_path)
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(format='s16', layout='mono', rate=16000)
+        
+        wav_io = io.BytesIO()
+        with wave.open(wav_io, 'wb') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(16000)
+            for frame in container.decode(stream):
+                resampled_frames = resampler.resample(frame)
+                if resampled_frames:
+                    for rframe in resampled_frames:
+                        wav_file.writeframes(rframe.to_ndarray().tobytes())
+        wav_io.seek(0)
+        return wav_io
     except Exception as e:
-        print(f"[WARN] ffmpeg conversion skipped: {e}")
-
-    try:
-        from pydub import AudioSegment
-        sound = AudioSegment.from_file(local_path)
-        sound.export(wav_path, format="wav")
-        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
-            return wav_path
-    except Exception as e:
-        print(f"[WARN] pydub conversion skipped: {e}")
-
-    return local_path
+        print(f"[WARN] PyAV audio conversion skipped: {e}")
+        return None
 
 def transcribe_audio_file(local_path):
     """Transcribe audio file safely with 0% chance of server OOM or crash."""
-    wav_file = convert_to_wav(local_path)
-    
-    # 1. Try SpeechRecognition (Google Speech API) - Fast, 0MB RAM model footprint
+    # 1. Try PyAV + SpeechRecognition (Google Speech API) - Fast, 5MB RAM model footprint
     try:
         import speech_recognition as sr
-        r = sr.Recognizer()
-        with sr.AudioFile(wav_file) as source:
-            audio_data = r.record(source)
-            text = r.recognize_google(audio_data)
-            if text:
-                print(f"[INFO] Transcribed via SpeechRecognition (len={len(text)} chars)")
-                if wav_file != local_path and os.path.exists(wav_file):
-                    try: os.remove(wav_file)
-                    except: pass
-                return text
+        wav_stream = convert_to_wav_io(local_path)
+        if wav_stream:
+            r = sr.Recognizer()
+            with sr.AudioFile(wav_stream) as source:
+                audio_data = r.record(source)
+                text = r.recognize_google(audio_data)
+                if text:
+                    print(f"[INFO] Transcribed via SpeechRecognition (len={len(text)} chars)")
+                    return text
     except Exception as sre:
         print(f"[DEBUG] SpeechRecognition skipped: {sre}")
-
-    if wav_file != local_path and os.path.exists(wav_file):
-        try: os.remove(wav_file)
-        except: pass
 
     # 2. Try Whisper if available locally
     whisper_engine = get_whisper_model()
